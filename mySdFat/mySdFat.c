@@ -305,10 +305,10 @@ myFile nextFile(myFile *pFolder)
 		return temp;
 	}
 
-	SD_readSector(startSecOfClus(currentClus) + sectorIndex, SD_buff);
-
 	while (1)
 	{
+		SD_readSector(startSecOfClus(currentClus) + sectorIndex, SD_buff);
+
 		temp = *((myFile *)(SD_buff + (pFolder->entryIndex % 16) * 32));
 
 		if (!isFreeEntry(&temp))
@@ -419,7 +419,6 @@ myFile nextFile(myFile *pFolder)
 				memset(&temp, 0, sizeof(myFile));
 				return temp;
 			}
-			SD_readSector(startSecOfClus(currentClus) + sectorIndex, SD_buff);
 		}
 	}
 	temp.entryIndex = isDirectory(&temp) ? 2 : 0;
