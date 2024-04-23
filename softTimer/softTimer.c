@@ -1,11 +1,11 @@
 /**
  * @file softTimer.c
  * @author Surya Poudel
- * @brief Software Timer implementation for NRF52840 
+ * @brief Software Timer implementation for NRF52840
  * @version 0.1
  * @date 2020-07-09
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -101,22 +101,9 @@ static inline void timer_list_node_delete(softTimer_node_t *instance)
 	timers_count--;
 }
 
-/*Function to clear trig flag of all the timer nodes.
+/*Function to update trig flag of timer nodes to be triggered next.
  */
-static inline void clear_trig_flag_all()
-{
-	softTimer_node_t *current_node = head_node;
-
-	while (current_node != NULL)
-	{
-		current_node->trig = false;
-		current_node = current_node->next_node;
-	}
-}
-
-/*Function to set trig flag of timer nodes to be triggered next.
- */
-static inline void set_trig_flag()
+static inline void update_trig_flag()
 {
 	softTimer_node_t *current_node = head_node;
 
@@ -133,6 +120,8 @@ static inline void set_trig_flag()
 
 		else if ((current_node->trig_ticks - next_trig_ticks) < RTC_CC_OFFSET_MIN)
 			current_node->trig = true;
+		else
+			current_node->trig = false;
 
 		current_node = current_node->next_node;
 	}
@@ -141,13 +130,54 @@ static inline void set_trig_flag()
  * This does not start the timer. softTimer_start() function should be called to start
  * the corresponding timer.
  */
-void softTimer_create(softTimer_node_t *instance, uint32_t interval, timeout_handler_t timeout_handler, my_timer_mode_t mode)
+void softTimer_create(softTimer_node_t *instance, uint32_t interval, timeout_handler_t timeout_handler, soft_timer_mode_t mode)
 {
 	instance->interval = interval;
 	instance->mode = mode;
 	instance->is_running = false;
 	instance->timeout_handler = timeout_handler;
 	instance->next_node = NULL;
+}
+
+/* Function to get the next RTC ticks of the timer node to be triggered.
+ * Corresponds to the next RTC ticks to be loaded into CC register.
+ */
+void get_next_trig_ticks()
+{
+	// return if no timers are running
+	if (head_node == NULL)
+		return;
+	next_trig_ticks = head_node->trig_ticks;
+	softTimer_node_t *current_node = head_node->next_node;
+
+	// Determine the minimum number of RTC ticks from the list of timers that corresponds to the next trigger RTC ticks.
+	while (current_node != NULL)
+	{
+		if (current_node->trig_ticks < next_trig_ticks)
+			next_trig_ticks = current_node->trig_ticks;
+
+		current_node = current_node->next_node;
+	}
+}
+
+/*Function to update the value of CC register
+ */
+static inline void update_cc_register()
+{
+	// Check if the next RTC trigger ticks to be loaded into CC register are larger than the maximum COUNTER value of RTC.
+	// if true, subtract maximum COUNTER value from the next rtc trigger ticks.
+	if (next_trig_ticks > NRF_RTC_MAX_CNT)
+	{
+		next_trig_ticks = next_trig_ticks - NRF_RTC_MAX_CNT - 1;
+		softTimer_node_t *current_node = head_node;
+		while (current_node != NULL)
+		{
+			current_node->trig_ticks = current_node->trig_ticks - NRF_RTC_MAX_CNT - 1;
+			current_node = current_node->next_node;
+		}
+	}
+
+	NRF_RTC2->CC[1] = next_trig_ticks; // load CC register with the ticks corresponding to next timer to be triggered.
 }
 
 /* Function to start the timer instances
@@ -184,14 +214,11 @@ void softTimer_start(softTimer_node_t *instance)
 	// get  RTC ticks corresponding to next timers to be triggered.
 	get_next_trig_ticks();
 
-	// Clear trig flag for all the instances before enabling the instances corresponding to next minimum number of ticks to be loaded into CC register.
-	clear_trig_flag_all();
+	// update cc register;
+	update_cc_register();
 
-	// set trig flag of the timers to be triggered next
-	set_trig_flag();
-
-	// load CC register with the ticks corresponding to next timer to be triggered.
-	NRF_RTC2->CC[1] = next_trig_ticks;
+	// update trig flag of the timers to be triggered next
+	update_trig_flag();
 
 	// Check if RTC peripheral is started. If not, start the peripheral and set rtc_stated flag.
 	if (!rtc_started)
@@ -237,7 +264,7 @@ static inline void trigger_timers()
 				continue;
 			}
 			// Check if the timer mode is SINGLE_SHOT. If true, stop the correponding timer
-			if (current_node->mode == MY_TIMER_MODE_SINGLE_SHOT)
+			if (current_node->mode == SOFT_TIMER_MODE_SINGLE_SHOT)
 			{
 				softTimer_stop(current_node);
 				current_node = temp;
@@ -249,56 +276,11 @@ static inline void trigger_timers()
 	}
 }
 
-/* Function to get the next RTC ticks of the timer node to be triggered.
- * Corresponds to the next RTC ticks to be loaded into CC register.
- */
-void get_next_trig_ticks()
-{
-	// return if no timers are running
-	if (head_node == NULL)
-		return;
-	next_trig_ticks = head_node->trig_ticks;
-	softTimer_node_t *current_node = head_node->next_node;
-
-	// Determine the minimum number of RTC ticks from the list of timers that corresponds to the next trigger RTC ticks.
-	while (current_node != NULL)
-	{
-		if (current_node->trig_ticks < next_trig_ticks)
-			next_trig_ticks = current_node->trig_ticks;
-
-		current_node = current_node->next_node;
-	}
-}
-
-/*Function to update the value of CC register
- */
-static inline void update_cc_register()
-{
-	// Check if the next RTC trigger ticks to be loaded into CC register are larger than the maximum COUNTER value of RTC.
-	// if true, subtract maximum COUNTER value from the next rtc trigger ticks.
-	if (next_trig_ticks > NRF_RTC_MAX_CNT)
-	{
-		next_trig_ticks = next_trig_ticks - NRF_RTC_MAX_CNT - 1;
-		softTimer_node_t *current_node = head_node;
-		while (current_node != NULL)
-		{
-			current_node->trig_ticks = current_node->trig_ticks - NRF_RTC_MAX_CNT - 1;
-			current_node = current_node->next_node;
-		}
-
-		NRF_RTC2->CC[1] = next_trig_ticks; // load CC register with the ticks corresponding to next timer to be triggered.
-	}
-
-	else
-		NRF_RTC2->CC[1] = next_trig_ticks;
-}
-
 /*
  * Function to handle the timer event generated in RTC1_IRQHandler
  */
 void handle_timers()
 {
-
 	// check for trig flag and trigger corresponding timers
 	trigger_timers();
 
@@ -309,7 +291,7 @@ void handle_timers()
 	update_cc_register();
 
 	// set the trig flag of all the timers to be triggerd next.
-	set_trig_flag();
+	update_trig_flag();
 }
 
 /* Function to initialize the timer module.
