@@ -1,19 +1,8 @@
-/**
- * @file SD_driver.c
- * @author Surya Poudel (poudel.surya2011@gmail.com)
- * @brief Driver for SD/MMC Card connected to SPI bus
- * @version 0.1
- * @date 2023-07-05
- *
- * @copyright Copyright(c) 2023, Surya Poudel
- */
-
 #include "nrf_drv_spi.h"
 #include "app_util_platform.h"
 #include "nrf_gpio.h"
 #include "SD_driver.h"
 #include "boards.h"
-#include <stdint.h>
 #include "nrf.h"
 #include "nrf_delay.h"
 #include "debug_log.h"

@@ -1,12 +1,12 @@
 /**
  * @file oled_menu.c
  * @author Surya Poudel
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2023-03-16
- * 
+ *
  * @copyright Copyright (c) 2023, Surya Poudel
- * 
+ *
  */
 #include "stdint.h"
 #include "string.h"
@@ -16,23 +16,22 @@
 #include "nrf_button.h"
 #include "oled_menu.h"
 #include "boards.h"
-#include "my_timer.h"
+#include "softTimer.h"
 #include "math.h"
 #include "nrf_delay.h"
 #include "pwm_led.h"
 #include "debug_log.h"
 #include "nrf52_ble.h"
-#include "wavPlayer.h"
 #include "mySdFat.h"
 
 #define ROT_ENC_BUTTON NRF_GPIO_PIN_MAP(1, 15)
 #define QDEC_PIN_A NRF_GPIO_PIN_MAP(1, 13)
 #define QDEC_PIN_B NRF_GPIO_PIN_MAP(1, 10)
-#define ITEM_COUNT 7
+#define ITEM_COUNT 6
 
 const char *items[] =
     {"Brightness", "Language", "Led blinker", "Draw wave", "BLE Advertising",
-     "Music Player", "PWM LED"};
+     "PWM LED"};
 
 const char *language[4] =
     {"English", "Nepali", "Hindi", "German"};
@@ -53,7 +52,7 @@ bool led_blink_flag = false;
 
 Menu_state_t menu_state = MAIN_MENU;
 
-MY_TIMER_DEF(led_timer);
+SOFT_TIMER_DEF(led_timer);
 
 #define BAR_IND_SIZE round((float)(62.0 / ITEM_COUNT))
 
@@ -166,7 +165,7 @@ void led_blink()
 {
   if (index_counter_updated)
   {
-    myTimer_stop(&led_timer);
+    softTimer_stop(&led_timer);
     if (dir_cw)
     {
       if (index_counter > 20)
@@ -189,7 +188,7 @@ void led_blink()
     oled_printString(temp_disp, 0, 24, 16, false);
     oled_display();
     index_counter_updated = false;
-    myTimer_start(&led_timer, MS_TO_TICKS(index_counter * 50));
+    softTimer_start(&led_timer, MS_TO_TICKS(index_counter * 50));
   }
 
   if (led_blink_flag)
@@ -286,17 +285,11 @@ void rot_enc_button_evt_handler()
 
     index_counter = saved_index_counter;
     back = true;
-    if (play_in_progress)
-    {
-      // myTimer_stop (&wavTimer);
-      play_in_progress = false;
-      songFolder.entryIndex = 2;
-    }
     NRF_PWM1->TASKS_STOP = 1;
     oled_resetLog();
     oled_setLineAddress(0);
     return_to_main_menu();
-    myTimer_stop(&led_timer);
+    softTimer_stop(&led_timer);
     ble_stop_advertising();
     bsp_board_led_off(0);
     menu_state = MAIN_MENU;
@@ -355,7 +348,7 @@ void handle_menu_enter()
     sprintf(temp_disp, "Delay=%d ms", index_counter * 50);
     oled_printString(temp_disp, 0, 24, 16, false);
     oled_display();
-    myTimer_start(&led_timer, MS_TO_TICKS(index_counter * 50));
+    softTimer_start(&led_timer, MS_TO_TICKS(index_counter * 50));
     menu_state = LED_BLINKER;
     break;
   }
@@ -381,13 +374,6 @@ void handle_menu_enter()
   }
 
   case 5:
-  {
-    back = false;
-    menu_state = MUSIC_PLAYER;
-    break;
-  }
-
-  case 6:
   {
     index_counter = default_duty;
     pwm_led_control(index_counter * 5);
@@ -483,12 +469,6 @@ void menu_process()
     break;
   }
 
-  case MUSIC_PLAYER:
-  {
-    wavPlayerProcess();
-    break;
-  }
-
   case PWM_LED:
   {
     pwmLed_control();
@@ -505,9 +485,7 @@ void oled_menu_init()
   nrf_button_register(NRF_BUTTON_3, ROT_ENC_BUTTON,
                       rot_enc_button_evt_handler);
 
-  myTimer_create(&led_timer, led_blink_evt_handler, MY_TIMER_MODE_REPEATED);
-
-  wavPlayer_init("/Songs");
+  softTimer_create(&led_timer, led_blink_evt_handler, SOFT_TIMER_MODE_REPEATED);
 
   pwm_led_init();
 

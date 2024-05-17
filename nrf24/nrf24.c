@@ -1,15 +1,6 @@
-/**
- * @file nrf24.c
- * @author Surya Poudel (poudel.surya2011@gmail.com)
- * @brief Wireless protocol compatible with nRF24 modules with ESB support
- * @version 0.1
- * @date 2021-12-05
- *
- * @copyright Copyright(c) 2021, Surya Poudel
- */
-
 #include <stdint.h>
 #include <string.h>
+
 #include "boards.h"
 #include "nrf24.h"
 #include "radio_driver.h"
@@ -17,14 +8,11 @@
 #include "softTimer.h"
 
 #if defined(NRF24_ESB)
-#define AUTO_RETRANSMIT_DELAY US_TO_TICKS(250)
-#define MAX_RETRIES 4
+#define AUTO_RETRANSMIT_DELAY US_TO_TICKS(1000)
+#define MAX_RETRIES 15
 SOFT_TIMER_DEF(auto_retransmit_timer);
-
 volatile uint8_t auto_retransmit_count = 0;
 #endif
-
-uint32_t nrf24_crc_poly = 0x11021UL;
 
 nrf24_evt_handler_t nrf24_event_handler;
 nrf24_packet_t recv_ack_packet;
@@ -95,6 +83,19 @@ static uint8_t reverse_bit_order(uint8_t byte)
 	return temp;
 }
 
+static void nrf24_set_pl_size(uint8_t pl_size)
+{
+#if defined(NRF24_ESB)
+	radio_set_s0_field_size(1);				// 1byte->6bits len+2bits pid
+	radio_set_s1_field_size(1);				// 1bit->no_ack flag
+	radio_set_static_payload_size(pl_size); // static payload len
+	radio_set_max_payload_size(pl_size);	// max payload len
+#else
+	radio_set_static_payload_size(pl_size);
+	radio_set_max_payload_size(pl_size);
+#endif
+}
+
 void nrf24_set_tx_address(const uint8_t *tx_address)
 {
 	uint8_t tx_addr_rev[5] = {0};
@@ -126,10 +127,10 @@ void nrf24_set_mode(nrf24_mode_t mode)
 		break;
 	case NRF24_MODE_TX:
 #if defined(NRF24_ESB)
-		radio_set_rx_logical_address(0);
-#endif
-		radio_config_pl_size(32, false);
+		radio_set_rx_logical_address(0); // for receiving ack packets
+#else
 		radio_set_mode(MODE_TX);
+#endif
 		break;
 	default:
 		break;
@@ -140,13 +141,14 @@ void nrf24_set_mode(nrf24_mode_t mode)
 
 void nrf24_tx_and_wait_for_ack()
 {
-	radio_config_pl_size_nrf24(32);
+
+	nrf24_set_pl_size(32);
 	radio_set_packet_ptr((uint8_t *)p_current_packet);
 	radio_set_mode(MODE_TX);
 	radio_start_tx();
 
+	nrf24_set_pl_size(0);
 	radio_set_packet_ptr((uint8_t *)&recv_ack_packet);
-	radio_config_pl_size_nrf24(0);
 	radio_set_mode(MODE_RX);
 	radio_start_rx();
 }
@@ -163,10 +165,8 @@ void auto_retransmit_handler()
 		nrf24_event_handler(&nrf24_event);
 		tx_fifo.count--;
 		NRF_EGU1->TASKS_TRIGGER[0] = 1;
-
 		return;
 	}
-	// debug_log_print("RETRY!\n");
 	nrf24_tx_and_wait_for_ack();
 	auto_retransmit_count++;
 }
@@ -183,8 +183,10 @@ void nrf24_tx_fifo_execute()
 	softTimer_start(&auto_retransmit_timer, AUTO_RETRANSMIT_DELAY);
 
 #else
+
 	radio_set_packet_ptr((uint8_t *)p_current_packet);
 	radio_start_tx();
+
 	nrf24_event.event_type = NRF24_TX_SUCCESS;
 	nrf24_event.data = NULL;
 	nrf24_event_handler(&nrf24_event);
@@ -235,7 +237,7 @@ void nrf24_handle_packet()
 		if (radio_get_received_address() == 1)
 		{
 			radio_set_tx_logical_address(1);
-			radio_config_pl_size_nrf24(0);
+			nrf24_set_pl_size(0);
 			radio_set_mode(MODE_TX);
 			radio_start_tx();
 			if ((recv_packet.PID & 0x03) != prev_pid)
@@ -247,7 +249,7 @@ void nrf24_handle_packet()
 			}
 
 			memset(&recv_packet, 0, sizeof(recv_packet));
-			radio_config_pl_size_nrf24(32);
+			nrf24_set_pl_size(32);
 			radio_set_mode(MODE_RX);
 			radio_start_rx();
 		}
@@ -300,20 +302,21 @@ void egu1_init()
 void nrf24_init()
 {
 	egu1_init();
+	uint32_t nrf24_crc_poly = 0x11021UL;
 	radio_set_payload_endian(RADIO_BIG_ENDIAN);
 	radio_configure_crc(2, 0, nrf24_crc_poly, 0xFFFF);
 	radio_enable_whitening(0);
-	radio_config_pl_size(32, false);
-	radio_set_data_rate(RADIO_1MBPS);
-	radio_enable_interrupts();
-	radio_set_frequency(76);
-	radio_set_address_width(5);
-	radio_set_tx_power(0x8);
-	radio_set_evt_handler(radio_evnt_handler);
 #if defined(NRF24_ESB)
 	softTimer_create(&auto_retransmit_timer, auto_retransmit_handler, SOFT_TIMER_MODE_REPEATED);
-
+#else
+	nrf24_set_pl_size(32);
 #endif
+	radio_set_data_rate(RADIO_1MBPS);
+	radio_set_frequency(76);
+	radio_set_address_width(5);
+	radio_set_tx_power(0x00);
+	radio_set_evt_handler(radio_evnt_handler);
+	radio_enable_interrupts();
 }
 
 void egu1_handler()

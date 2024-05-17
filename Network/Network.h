@@ -32,4 +32,6 @@ void network_init(uint16_t node_address, nw_evt_handler_t evt_handler);
 void nw_update();
 void nw_send(uint16_t dest_node, uint8_t *message, uint8_t length, nw_msg_type_t nw_msg_type);
 
+
+
 #endif /*_NETWORK_H_ */

@@ -395,7 +395,6 @@ myFile nextFile(myFile *pFolder)
 		}
 		else
 		{
-
 			pFolder->entryIndex++;
 			if (pFolder->entryIndex % 16 == 0)
 			{
@@ -575,10 +574,7 @@ void fileReset(myFile *pFile)
 uint8_t readByte(myFile *pFile)
 {
 	static bool readStarted = false;
-	static uint32_t Cluster = 0xFFFFFFFF;
-
-	if (Cluster == 0xFFFFFFFF)
-		Cluster = startCluster(pFile);
+	static uint32_t Cluster = 0;
 
 	if (pFile->entryIndex == 0)
 	{

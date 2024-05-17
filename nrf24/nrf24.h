@@ -1,9 +1,7 @@
 #ifndef NRF24_H
 #define NRF24_H
-
-
-#define NRF24_TX_FIFO_MAX_SIZE 5000
-// #define NRF24_ESB
+#define NRF24_TX_FIFO_MAX_SIZE 1024
+#define NRF24_ESB
 typedef struct
 {
 #if defined(NRF24_ESB)

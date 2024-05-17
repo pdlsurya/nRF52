@@ -2,10 +2,10 @@
  * @file radio_driver.c
  * @author Surya Poudel
  * @brief Radio peripheral driver for nrf52840
- * @version 1.0
- * @date 2022-04-26
+ * @version 0.1
+ * @date 2023-04-26
  *
- * @copyright Copyright (c) 2022
+ * @copyright Copyright (c) 2023
  *
  */
 
@@ -14,7 +14,7 @@
 #include "boards.h"
 #include "radio_driver.h"
 
-#define RADIO_IRQ_PRIORITY 6
+#define RADIO_IRQ_PRIORITY 4
 
 radio_event_handler_t radio_event_handler;
 
@@ -139,23 +139,29 @@ void radio_set_data_rate(radio_data_rate_t data_rate)
     NRF_RADIO->MODE = (uint32_t)data_rate;
 }
 
-void radio_config_pl_size(uint8_t max_pln, bool dynamic_pl)
+void radio_set_len_field_size(uint8_t bits)
 {
-    if (dynamic_pl)
-    {
-        NRF_RADIO->PCNF0 |= 8 << 0;  // No. of bits of LEN field
-        NRF_RADIO->PCNF0 |= 1 << 8;  // No. of bytes of S0 field
-        NRF_RADIO->PCNF0 |= 0 << 16; // No. of bits of S1 field
-        NRF_RADIO->PCNF0 |= 0 << 26; // Include or exclude CRC in total length
-    }
-    else
-    {
-        uint32_t mask = 0xFFFF0000;
-        NRF_RADIO->PCNF1 &= mask;
-        NRF_RADIO->PCNF1 |= (uint32_t)max_pln << 8;
-    }
+    NRF_RADIO->PCNF0 |= (uint32_t)bits << 0;
+}
 
-    NRF_RADIO->PCNF1 |= (uint32_t)max_pln << 0;
+void radio_set_s0_field_size(uint8_t bytes)
+{
+    NRF_RADIO->PCNF0 |= (uint32_t)bytes << 8;
+}
+
+void radio_set_s1_field_size(uint8_t bits)
+{
+    NRF_RADIO->PCNF0 |= (uint32_t)bits << 16;
+}
+
+void radio_set_static_payload_size(uint32_t static_pl_size)
+{
+    NRF_RADIO->PCNF1 |= (uint32_t)static_pl_size << 8; // static  payload length
+}
+
+void radio_set_max_payload_size(uint32_t max_pl_size)
+{
+    NRF_RADIO->PCNF1 |= (uint32_t)max_pl_size << 0; // max payload length
 }
 
 void radio_set_address_width(uint8_t add_width)
@@ -182,12 +188,12 @@ uint8_t radio_get_received_address()
     return NRF_RADIO->RXMATCH;
 }
 
-static void radio_set_tx_logical_address(uint8_t logical_address)
+void radio_set_tx_logical_address(uint8_t logical_address)
 {
     NRF_RADIO->TXADDRESS = (uint32_t)logical_address;
 }
 
-static void radio_set_rx_logical_address(uint8_t logical_address)
+void radio_set_rx_logical_address(uint8_t logical_address)
 {
     NRF_RADIO->RXADDRESSES |= 1UL << logical_address;
 }
@@ -219,7 +225,6 @@ void radio_set_address(const uint8_t *address, uint8_t logical_address)
         for (uint8_t i = 0; i < 4; i++)
             NRF_RADIO->BASE1 |= (uint32_t)(address[4 - i] << (8 * i));
     }
-    radio_set_tx_logical_address(logical_address);
 }
 
 void radio_set_tx_address(const uint8_t *tx_address, uint8_t logical_address)
@@ -268,7 +273,7 @@ void radio_enable_interrupts()
 void RADIO_IRQHandler(void)
 {
 
-    if ((NRF_RADIO->EVENTS_END) && (radio_get_state() == RX_IDLE))
+    if (NRF_RADIO->EVENTS_END && radio_get_state() == RX_IDLE)
     {
         NRF_RADIO->EVENTS_END = 0;
 

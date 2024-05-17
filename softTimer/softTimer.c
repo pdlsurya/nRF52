@@ -130,9 +130,8 @@ static inline void update_trig_flag()
  * This does not start the timer. softTimer_start() function should be called to start
  * the corresponding timer.
  */
-void softTimer_create(softTimer_node_t *instance, uint32_t interval, timeout_handler_t timeout_handler, soft_timer_mode_t mode)
+void softTimer_create(softTimer_node_t *instance, timeout_handler_t timeout_handler, soft_timer_mode_t mode)
 {
-	instance->interval = interval;
 	instance->mode = mode;
 	instance->is_running = false;
 	instance->timeout_handler = timeout_handler;
@@ -183,13 +182,14 @@ static inline void update_cc_register()
 /* Function to start the timer instances
  * This stores the timer instances in a running timer queue and loads CC register with next minimum RTC ticks.
  */
-void softTimer_start(softTimer_node_t *instance)
+void softTimer_start(softTimer_node_t *instance, uint32_t interval)
 {
 	// check if the timer is already in running state. If true, abort.
 	if (instance->is_running)
 	{
 		return;
 	}
+	instance->interval = interval;
 
 	// Check for maximum number of allowed instance to run and generate an error accordingly.
 	if (timers_count == MAX_TIMERS_CNT)

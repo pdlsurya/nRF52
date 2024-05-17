@@ -83,6 +83,8 @@ bool isValidFile(myFile *pFile);
 
 bool isEndOfDir(myFile *pFile);
 
+bool isDirectory(myFile *pFile);
+
 void fileReset(myFile *pFile);
 
 uint32_t fileSize(myFile  *pFile);

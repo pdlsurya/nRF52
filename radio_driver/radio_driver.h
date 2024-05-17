@@ -54,7 +54,15 @@ void radio_start_rx();
 
 void radio_enable_interrupts();
 
-void radio_config_pl_size(uint8_t max_pln, bool dynamic_pl);
+void radio_set_len_field_size(uint8_t bits);
+
+void radio_set_s0_field_size(uint8_t bytes);
+
+void radio_set_s1_field_size(uint8_t bits);
+
+void radio_set_static_payload_size(uint32_t static_pln);
+
+void radio_set_max_payload_size(uint32_t max_pln);
 
 void radio_enable_whitening(bool en);
 
@@ -65,5 +73,9 @@ void radio_set_evt_handler(radio_event_handler_t evt_handler);
 uint8_t radio_get_received_address();
 
 radio_state_t radio_get_state();
+
+void radio_set_tx_logical_address(uint8_t logical_address);
+
+void radio_set_rx_logical_address(uint8_t logical_address);
 
 #endif

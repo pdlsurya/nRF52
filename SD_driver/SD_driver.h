@@ -1,7 +1,6 @@
 #ifndef __SD_DRIVER_H
 #define __SD_DRIVER_H
 
-
 #include<stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
