@@ -21,9 +21,7 @@
 #define RTC_PRESCALER 0
 #define NRF_RTC_MAX_CNT 0x00FFFFFF // Maximum count of RTC
 #define RTC_CC_OFFSET_MIN 3		   // Minimum offset required for CC register from current COUNTER value to generate an event.
-#define MAX_TIMERS_CNT 16		   // Maximum number of timer instances allowed
 
-uint8_t timers_count;	  // Number of running timers in the list
 uint32_t next_trig_ticks; // RTC ticks to be loaded into CC register
 bool rtc_started = false; // rtc_started flag
 
@@ -39,19 +37,12 @@ static void timer_list_node_add(softTimer_node_t *instance)
 	{
 		head_node = instance;
 		head_node->next_node = NULL;
-		timers_count++;
 		return;
 	}
 
-	softTimer_node_t *current_node = head_node;
-	// traverse over the list until the last node
-	while (current_node->next_node != NULL)
-	{
-		current_node = current_node->next_node;
-	}
-	current_node->next_node = instance;
-	current_node->next_node->next_node = NULL;
-	timers_count++;
+	softTimer_node_t *temp_node = head_node->next_node;
+	head_node = instance;
+	head_node->next_node = temp_node;
 }
 
 /*Function to delete the timer from the beginning of the list.
@@ -71,15 +62,9 @@ static inline void timer_list_node_delete(softTimer_node_t *instance)
 	softTimer_node_t *current_node = head_node;
 
 	// if the timer correponds to the head node in the list, remove the timer node and reassign head node.
-	if (instance == head_node && head_node->next_node != NULL)
+	if (instance == head_node)
 	{
 		delete_first_node(&head_node);
-	}
-
-	// if there is only one timer node in the list, unlink the node by making head node NULL.
-	else if (instance == head_node && head_node->next_node == NULL)
-	{
-		head_node = NULL;
 	}
 
 	else
@@ -87,18 +72,9 @@ static inline void timer_list_node_delete(softTimer_node_t *instance)
 		while (current_node->next_node != instance)
 			current_node = current_node->next_node;
 
-		// if the timer node corresponds to the last node in the list
-		if (current_node->next_node->next_node == NULL)
-		{
-			current_node->next_node = NULL;
-			timers_count--;
-			return;
-		}
-		// if timer node corresponds to the node in the middle of the list, remove the node and reassign next_node pointer.
 		current_node->next_node = instance->next_node;
 		instance->next_node = NULL;
 	}
-	timers_count--;
 }
 
 /*Function to update trig flag of timer nodes to be triggered next.
@@ -191,13 +167,6 @@ void softTimer_start(softTimer_node_t *instance, uint32_t interval)
 	}
 	instance->interval = interval;
 
-	// Check for maximum number of allowed instance to run and generate an error accordingly.
-	if (timers_count == MAX_TIMERS_CNT)
-	{
-		debug_log_print("ERROR:Maximum allowed running timer instances reached");
-		return;
-	}
-
 	// if RTC is not started, trigger ticks will be equal to the interval ticks
 	// Otherwise, next trigger ticks is determined by adding interval ticks to the current RTC counter value
 	if (!rtc_started)
@@ -210,7 +179,7 @@ void softTimer_start(softTimer_node_t *instance, uint32_t interval)
 
 	// add the timer in the queue of running timers
 	timer_list_node_add(instance);
-	debug_log_print("Timer cnt=%d", timers_count);
+
 	// get  RTC ticks corresponding to next timers to be triggered.
 	get_next_trig_ticks();
 
@@ -237,7 +206,6 @@ void softTimer_stop(softTimer_node_t *instance)
 	{
 		instance->is_running = false;
 		timer_list_node_delete(instance);
-		debug_log_print("Timer cnt=%d", timers_count);
 	}
 }
 

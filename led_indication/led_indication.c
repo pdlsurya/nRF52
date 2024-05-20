@@ -10,9 +10,9 @@
 #define FAST_BLINK_BASE_INTERVAL MS_TO_OS_TICKS(1000)
 #define FAST_BLINK_CORE_INTERVAL MS_TO_OS_TICKS(80)
 
-TIMER_DEF(normal_blink_timer);
-TIMER_DEF(fast_blink_timer_base);
-TIMER_DEF(fast_blink_timer_core);
+TIMER_DEFINE(normal_blink_timer, normal_blink_timer_handler, TIMER_MODE_PERIODIC);
+TIMER_DEFINE(fast_blink_timer_base, fast_blink_timer_base_handler, TIMER_MODE_PERIODIC);
+TIMER_DEFINE(fast_blink_timer_core, fast_blink_timer_core_handler, TIMER_MODE_PERIODIC);
 
 void normal_blink_timer_handler()
 {
@@ -41,13 +41,10 @@ void led_indication_set(led_indication_t indication_type)
 	{
 
 	case LED_INDICATION_NORMAL_BLINK:
-		timerCreate(&normal_blink_timer, normal_blink_timer_handler, TIMER_MODE_PERIODIC);
 		timerStart(&normal_blink_timer, NORMAL_BLINK_INTERVAL);
 		break;
 
 	case LED_INDICATION_FAST_BLINK:
-		timerCreate(&fast_blink_timer_base, fast_blink_timer_base_handler, TIMER_MODE_PERIODIC);
-		timerCreate(&fast_blink_timer_core, fast_blink_timer_core_handler, TIMER_MODE_PERIODIC);
 		timerStart(&fast_blink_timer_base, FAST_BLINK_BASE_INTERVAL);
 		break;
 
