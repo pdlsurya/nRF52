@@ -39,7 +39,7 @@ cdc_acm_user_ev_handler(app_usbd_class_inst_t const *p_inst,
 #define CDC_ACM_DATA_EPIN NRF_DRV_USBD_EPIN1
 #define CDC_ACM_DATA_EPOUT NRF_DRV_USBD_EPOUT1
 
-#define MAX_logs_to_print 128
+#define MAX_logs_to_print 64
 #define MAX_LOG_SIZE 64
 
 /**

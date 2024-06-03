@@ -1,10 +1,25 @@
 #ifndef __MYSDFAT_H
 #define __MYSDFAT_H
 
-
-#include<stdint.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <SD_driver.h>
+
+#define BOOT_SEC_START 0x00002000
+#define FSInfo_SEC 0x00002001
+
+#define ATTR_READ_ONLY 0x01
+#define ATTR_HIDDEN 0x02
+#define ATTR_SYSTEM 0x04
+#define ATTR_VOLUME_ID 0x08
+#define ATTR_DIRECTORY 0x10
+#define ATTR_ARCHIVE 0x20
+#define ATTR_LONG_FILE_NAME 0x0F
+
+#define ATTR_LONG_NAME_MASK (ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID | ATTR_DIRECTORY | ATTR_ARCHIVE)
+
+#define FAT_EOC 0x0FFFFFF8
 
 typedef enum
 {
@@ -53,19 +68,64 @@ typedef struct
 
 } myFile;
 
-bool mySdFat_init();
+extern char fileName[128];
+
+static inline uint32_t startCluster(myFile *pFile)
+{
+    uint32_t startClus = (uint32_t)pFile->DIR_FstClusLO;
+    startClus |= ((uint32_t)(pFile->DIR_FstClusHI)) << 16;
+    return startClus;
+}
+
+static inline bool isDirectory(myFile *pFile)
+{
+    return !(((pFile->DIR_attr & (ATTR_DIRECTORY | ATTR_VOLUME_ID)) == 0));
+}
+
+static inline bool isEndOfDir(myFile *pFile)
+{
+    return ((uint8_t)(pFile->DIR_Name[0]) == 0);
+}
+
+static inline bool isValidFile(myFile *pFile)
+{
+    return (startCluster(pFile) != 0) && !(isEndOfDir(pFile) || (fileName[0] == '.' && fileName[1] == '_'));
+}
+
+static inline uint32_t fileSize(myFile *pFile)
+{
+    return pFile->DIR_FileSize;
+}
+
+static inline uint8_t fileLfnEntCnt(myFile *pFile)
+{
+    return pFile->fileEntInf.LFN_EntCnt;
+}
+
+static inline void fileReset(myFile *pFile)
+{
+    // stop any on going multiple secotrs read
+    SD_readMultipleSecStop();
+
+    // reset index;
+    pFile->entryIndex = 0;
+}
+
+static inline void fileClose(myFile *pFile)
+{
+    memset(pFile, 0, sizeof(myFile));
+    SD_readMultipleSecStop();
+}
+
+bool mySdFat_init(SPI_HandleTypeDef *hspi);
 
 bool listDir(const char *path);
 
-bool readFile(const char *path, const char *fileName);
-
 myFile fileOpen(const char *path, const char *filename);
-
-uint8_t fileLfnEntCnt(myFile *pFile);
 
 void fileClose(myFile *pFile);
 
-uint8_t readByte(myFile* pFile);
+uint8_t readByte(myFile *pFile);
 
 myFile createDirectory(const char *path, const char *dirName);
 
@@ -74,20 +134,6 @@ bool fileWrite(myFile *pFile, const char *data);
 bool fileDelete(const char *path, const char *filename);
 
 myFile nextFile(myFile *pFile);
-
-myFile pathExists(const char *path);
-
-uint32_t startCluster(myFile *pFile);
-
-bool isValidFile(myFile *pFile);
-
-bool isEndOfDir(myFile *pFile);
-
-bool isDirectory(myFile *pFile);
-
-void fileReset(myFile *pFile);
-
-uint32_t fileSize(myFile  *pFile);
 
 extern char fileName[128];
 

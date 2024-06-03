@@ -9,26 +9,11 @@
  */
 
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
+#include <stdlib.h>
+#include <string.h>
 #include "mySdFat.h"
 #include "SD_driver.h"
 #include "debug_log.h"
-
-#define BOOT_SEC_START 0x00002000
-#define FSInfo_SEC 0x00002001
-
-#define ATTR_READ_ONLY 0x01
-#define ATTR_HIDDEN 0x02
-#define ATTR_SYSTEM 0x04
-#define ATTR_VOLUME_ID 0x08
-#define ATTR_DIRECTORY 0x10
-#define ATTR_ARCHIVE 0x20
-#define ATTR_LONG_FILE_NAME 0x0F
-
-#define ATTR_LONG_NAME_MASK (ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID | ATTR_DIRECTORY | ATTR_ARCHIVE)
-
-#define FAT_EOC 0x0FFFFFF8
 
 bootSecParams_t params;
 uint8_t SD_buff[512];
@@ -153,7 +138,7 @@ static void fatSetNextClus(uint32_t fatThisClus, uint32_t fatNextClus)
 	SD_writeSector(fatEntLoc.fatSecNum, SD_buff);
 }
 
-static uint32_t startSecOfClus(uint32_t cluster_index)
+static inline uint32_t startSecOfClus(uint32_t cluster_index)
 {
 	return (DataStartSector + (cluster_index - 2) * params.BPB_SecPerClus);
 }
@@ -216,46 +201,14 @@ static void getShortFileName(myFile *pFile)
 	}
 }
 
-uint32_t startCluster(myFile *pFile)
-{
-	uint32_t startClus = (uint32_t)pFile->DIR_FstClusLO;
-	startClus |= ((uint32_t)(pFile->DIR_FstClusHI)) << 16;
-	return startClus;
-}
-
 static inline bool isFreeEntry(myFile *pFile)
 {
 	return ((uint8_t)(pFile->DIR_Name[0]) == 0xE5);
 }
 
-bool isDirectory(myFile *pFile)
-{
-	return !(((pFile->DIR_attr & (ATTR_DIRECTORY | ATTR_VOLUME_ID)) == 0));
-}
-
-bool isEndOfDir(myFile *pFile)
-{
-	return ((uint8_t)(pFile->DIR_Name[0]) == 0);
-}
-
-bool isValidFile(myFile *pFile)
-{
-	return !(isEndOfDir(pFile) || (fileName[0] == '.' && fileName[1] == '_'));
-}
-
-static bool LFN_Entry(myFile *pFile)
+static inline bool LFN_Entry(myFile *pFile)
 {
 	return (((pFile->DIR_attr & ATTR_LONG_NAME_MASK) == ATTR_LONG_FILE_NAME) && (((uint8_t)pFile->DIR_Name[0] & 0xF0) == 0x40));
-}
-
-uint8_t fileLfnEntCnt(myFile *pFile)
-{
-	return pFile->fileEntInf.LFN_EntCnt;
-}
-
-uint32_t fileSize(myFile *pFile)
-{
-	return pFile->DIR_FileSize;
 }
 
 myFile rootDir()
@@ -321,6 +274,7 @@ myFile nextFile(myFile *pFolder)
 
 			if (LFN_Entry(&temp))
 			{
+
 				memset(fileName, 0, sizeof(fileName));
 				uint8_t LFN_entryCnt = ((((LFN_entry_t *)&temp)->LDIR_Ord) & 0x0F);
 				uint8_t lfnEntCntTemp = LFN_entryCnt;
@@ -360,8 +314,8 @@ myFile nextFile(myFile *pFolder)
 								return temp;
 							}
 						}
-
-						SD_readSector(startSecOfClus(currentClus) + sectorIndex, SD_buff);
+						SD_readSector(startSecOfClus(currentClus) + sectorIndex,
+									  SD_buff);
 					}
 				}
 
@@ -395,6 +349,7 @@ myFile nextFile(myFile *pFolder)
 		}
 		else
 		{
+
 			pFolder->entryIndex++;
 			if (pFolder->entryIndex % 16 == 0)
 			{
@@ -410,7 +365,8 @@ myFile nextFile(myFile *pFolder)
 						return temp;
 					}
 				}
-				SD_readSector(startSecOfClus(currentClus) + sectorIndex, SD_buff);
+				SD_readSector(startSecOfClus(currentClus) + sectorIndex,
+							  SD_buff);
 			}
 		}
 	}
@@ -419,7 +375,7 @@ myFile nextFile(myFile *pFolder)
 	return temp;
 }
 
-static void dispFile(myFile *pFile, char *name, uint8_t tab)
+static void dispFile(myFile *pFile, char *fileName, uint8_t tab)
 {
 	for (uint8_t i = 0; i < tab; i++)
 		debug_log_print("    ");
@@ -439,9 +395,9 @@ static void dispFile(myFile *pFile, char *name, uint8_t tab)
 
 	debug_log_print("%d Bytes\n", pFile->DIR_FileSize);
 	/*
-	 //USB_SerialPrint(" || ");
-	 //USB_SerialPrint("startClus:");
-	 //USB_SerialPrint(startCluster(pFile));
+	 //debug_log_print(" || ");
+	 //debug_log_print("startClus:");
+	 //debug_log_print(startCluster(pFile));
 	 */
 }
 
@@ -468,7 +424,7 @@ static myFile fileExists(const char *file, myFile *pFolder)
 	return tempFile;
 }
 
-myFile pathExists(const char *path)
+static myFile pathExists(const char *path)
 {
 	myFile tempFile = rootDir();
 
@@ -541,7 +497,7 @@ static bool printContent(uint32_t startClus, uint32_t size)
 		}
 		else
 		{
-			// debug_log_print("Content read failed!");
+			// //debug_log_print("Content read failed!");
 			return false;
 		}
 		SD_readMultipleSecStop();
@@ -549,89 +505,44 @@ static bool printContent(uint32_t startClus, uint32_t size)
 	return true;
 }
 
-void fileClose(myFile *pFile)
-{
-	memset(pFile, 0, sizeof(myFile));
-	SD_readMultipleSecStop();
-}
-
-bool isClosed(myFile *pFile)
+static inline bool isClosed(myFile *pFile)
 {
 	if ((startCluster(pFile) == 0) && (pFile->DIR_FileSize == 0))
 		return true;
 	return false;
 }
 
-void fileReset(myFile *pFile)
-{
-	// stop any on going multiple secotrs read
-	SD_readMultipleSecStop();
-
-	// reset index;
-	pFile->entryIndex = 0;
-}
-
 uint8_t readByte(myFile *pFile)
 {
-	static bool readStarted = false;
 	static uint32_t Cluster = 0;
-
-	if (pFile->entryIndex == 0)
-	{
-		readStarted = false;
-		Cluster = startCluster(pFile);
-	}
+	static uint8_t sectorIndex = 0;
 
 	if (isClosed(pFile))
 	{
-		SD_readMultipleSecStop();
-		readStarted = false;
 		return 0;
 	}
 
-	if (!readStarted)
+	if (pFile->entryIndex == 0)
 	{
-		SD_readMultipleSecStart(startSecOfClus(Cluster));
-		SD_readMultipleSec(SD_buff);
-		readStarted = true;
+		Cluster = startCluster(pFile);
+		sectorIndex = 0;
 	}
 
 	if ((pFile->entryIndex > 0) && (pFile->entryIndex % (params.BPB_SecPerClus * params.BPB_BytesPerSec) == 0))
 	{
-		SD_readMultipleSecStop();
+		sectorIndex = 0;
 		Cluster = fatNextClus(Cluster);
 		if (Cluster >= FAT_EOC)
 		{
-			SD_readMultipleSecStop();
-			readStarted = false;
+			pFile->entryIndex = 0;
 			return 0;
 		}
-		SD_readMultipleSecStart(startSecOfClus(Cluster));
 	}
 
-	if (pFile->entryIndex > 0 && (pFile->entryIndex % params.BPB_BytesPerSec == 0))
-		SD_readMultipleSec(SD_buff);
+	if (pFile->entryIndex % params.BPB_BytesPerSec == 0)
+		SD_readSector(startSecOfClus(Cluster) + (sectorIndex++), SD_buff);
 
 	return SD_buff[(pFile->entryIndex++) % params.BPB_BytesPerSec];
-}
-
-bool readFile(const char *path, const char *fileName)
-{
-	myFile tempFile = pathExists(path);
-	if (startCluster(&tempFile) == 0)
-	{
-		debug_log_print("Invalid path\n");
-		return false;
-	}
-	tempFile = fileExists(fileName, &tempFile);
-	if (startCluster(&tempFile) == 0)
-		return false;
-
-	uint32_t startClus = startCluster(&tempFile);
-	printContent(startClus, tempFile.DIR_FileSize);
-	debug_log_print("\n");
-
-	return true;
 }
 
 bool listDir(const char *path)
@@ -650,12 +561,12 @@ bool listDir(const char *path)
 	}
 
 	myFile folder = tempFile;
+
 	do
 	{
 		tempFile = nextFile(&folder);
 		if (isValidFile(&tempFile))
 			dispFile(&tempFile, fileName, 0);
-
 	} while (!isEndOfDir(&tempFile));
 	debug_log_print("\n");
 	return true;
@@ -936,28 +847,8 @@ static uint32_t getNxtFreeClus()
 		return 0xFFFFFFFF;
 }
 
-static myFile createFile(const char *path, const char *filename, bool isDir)
+static myFile createFile(myFile *pathDir, const char *filename, bool isDir)
 {
-	myFile pathDir;
-
-	myFile tempFile = pathExists(path);
-	if (startCluster(&tempFile) == 0)
-	{
-		debug_log_print("Invalid path!");
-		return tempFile;
-	}
-
-	pathDir = tempFile;
-
-	tempFile = fileExists(filename, &pathDir);
-
-	if (startCluster(&tempFile) != 0)
-	{
-		debug_log_print("File exists!");
-		tempFile.entryIndex = 0;
-		return tempFile;
-	}
-
 	myFile newFile = {0};
 
 	uint32_t fileStartClus = getNxtFreeClus();
@@ -1007,7 +898,7 @@ static myFile createFile(const char *path, const char *filename, bool isDir)
 		uint8_t nameIndex = 0;
 		uint8_t temp = lfnEntCnt;
 
-		frEnt = getFreeEntry(&pathDir, lfnEntCnt + 1);
+		frEnt = getFreeEntry(pathDir, lfnEntCnt + 1);
 		SD_readSector(startSecOfClus(frEnt.Cluster) + frEnt.sectorIndex,
 					  SD_buff);
 
@@ -1049,7 +940,7 @@ static myFile createFile(const char *path, const char *filename, bool isDir)
 	else
 
 	{
-		frEnt = getFreeEntry(&pathDir, 1);
+		frEnt = getFreeEntry(pathDir, 1);
 		SD_readSector(startSecOfClus(frEnt.Cluster) + frEnt.sectorIndex,
 					  SD_buff);
 
@@ -1106,14 +997,38 @@ static myFile createFile(const char *path, const char *filename, bool isDir)
 	}
 	else
 	{
-		memset(&tempFile, 0, sizeof(myFile));
-		return tempFile;
+		memset(&newFile, 0, sizeof(myFile));
+		return newFile;
 	}
 }
 
 myFile fileOpen(const char *path, const char *filename)
 {
-	return createFile(path, filename, false);
+
+	myFile pathDir = pathExists(path);
+
+	if (startCluster(&pathDir) == 0)
+	{
+		debug_log_print("Invalid path!\n");
+		return pathDir;
+	}
+	else if (filename == NULL)
+	{
+		return pathDir;
+	}
+	else
+	{
+
+		myFile tempFile = fileExists(filename, &pathDir);
+
+		if (startCluster(&tempFile) != 0)
+		{
+			debug_log_print("File exists!\n");
+			return tempFile;
+		}
+
+		return createFile(&pathDir, filename, false);
+	}
 }
 
 myFile createDirectory(const char *path, const char *dirName)
@@ -1130,11 +1045,11 @@ myFile createDirectory(const char *path, const char *dirName)
 
 	if (startCluster(&thisDir) != 0)
 	{
-		// //USB_SerialPrint("Folder exists!");
+		// //debug_log_print("Folder exists!");
 		return thisDir;
 	}
 
-	thisDir = createFile(path, dirName, true);
+	thisDir = createFile(&parentDir, dirName, true);
 
 	uint32_t dirStartClus = startCluster(&thisDir);
 
@@ -1165,8 +1080,8 @@ myFile createDirectory(const char *path, const char *dirName)
 bool fileWrite(myFile *pFile, const char *data)
 {
 	uint32_t startClus = startCluster(pFile);
-	uint16_t byteIndex = pFile->DIR_FileSize % 512;
-	uint32_t sectorIndex = pFile->DIR_FileSize / 512;
+	uint16_t byteIndex = pFile->DIR_FileSize % params.BPB_BytesPerSec;
+	uint32_t sectorIndex = pFile->DIR_FileSize / params.BPB_BytesPerSec;
 	uint32_t clusterCnt = (sectorIndex / params.BPB_SecPerClus) + 1;
 	uint32_t byteCnt = 0;
 	bool moreData = true;
@@ -1286,10 +1201,10 @@ bool fileDelete(const char *path, const char *filename)
  * @brief Funtion to initialize SD Cart and FAT parameters.
  * @return true/fasle returns true upon successful initialization;Otherse returs false.
  */
-bool mySdFat_init()
+bool mySdFat_init(SPI_HandleTypeDef *hspi)
 {
 
-	if (SD_init() == SD_INIT_ERROR)
+	if (SD_init(hspi) == SD_INIT_ERROR)
 		return false;
 
 	if (getBootSecParams())
