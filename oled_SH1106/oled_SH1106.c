@@ -19,10 +19,10 @@
 #define CONTRAST_CTRL_MODE 0X81
 #define TYPE_CMD 0x00
 #define TYPE_DATA 0x40
-#define CMD_ROL 0xA0
-#define CMD_SCAN_COM63 0xC0
-#define CMD_START_RMW 0xE0 // Read-Modify-Write start
-#define CMD_STOP_RMW 0xEE  // Read-Modify-Write end
+#define CMD_ROL 0xA1        // 0xA0
+#define CMD_SCAN_COM63 0xC8 // 0xC0
+#define CMD_START_RMW 0xE0  // Read-Modify-Write start
+#define CMD_STOP_RMW 0xEE   // Read-Modify-Write end
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
@@ -107,16 +107,14 @@ void i2c_evt_handler()
 void oled_display()
 {
 
-  if (!oled_display_in_progress)
+  for (int page = 0; page < 8; page++)
   {
-    oled_display_in_progress = true;
-
     memcpy(dispBuffer_temp, dispBuffer, sizeof(dispBuffer));
 
     i2c_tx_buf_temp[0] = TYPE_DATA;
-    memcpy(&i2c_tx_buf_temp[1], dispBuffer_temp[oled_page], 128);
+    memcpy(&i2c_tx_buf_temp[1], dispBuffer_temp[page], 128);
 
-    oled_setCursorPos(0, oled_page * 8);
+    oled_setCursorPos(0, page * 8);
     i2c_tx(&i2c_instance, OLED_ADDRESS, i2c_tx_buf_temp, 129);
   }
 }
@@ -391,30 +389,9 @@ void oled_drawCircle(float Cx, float Cy, float radius, bool set)
   }
 }
 
-void oled_displayBmp(const uint8_t binArray[])
+void oled_displayBmp(const uint8_t *bmpData)
 {
-  uint8_t line = 0, i;
-  uint8_t chr;
-  for (uint8_t y = 0; y < 64; y += 8)
-  {
-
-    oled_setCursor(0, y);
-
-    for (uint8_t parts = 0; parts < 8; parts++)
-    {
-
-      for (uint8_t column = 0; column < 16; column++)
-      {
-        chr = binArray[line * 128 + i];
-
-        dispBuffer[disp_row][disp_column++] = chr;
-
-        i++;
-      }
-    }
-    i = 0;
-    line++;
-  }
+  memcpy(dispBuffer, bmpData, sizeof(dispBuffer));
 }
 
 void oled_resetLog()
