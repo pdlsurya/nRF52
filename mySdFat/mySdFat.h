@@ -117,7 +117,7 @@ static inline void fileClose(myFile *pFile)
     SD_readMultipleSecStop();
 }
 
-bool mySdFat_init(SPI_HandleTypeDef *hspi);
+bool mySdFat_init();
 
 bool listDir(const char *path);
 

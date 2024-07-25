@@ -395,9 +395,9 @@ static void dispFile(myFile *pFile, char *fileName, uint8_t tab)
 
 	debug_log_print("%d Bytes\n", pFile->DIR_FileSize);
 	/*
-	 //debug_log_print(" || ");
-	 //debug_log_print("startClus:");
-	 //debug_log_print(startCluster(pFile));
+	 debug_log_print(" || ");
+	 debug_log_print("startClus:");
+	 debug_log_print(startCluster(pFile));
 	 */
 }
 
@@ -497,7 +497,7 @@ static bool printContent(uint32_t startClus, uint32_t size)
 		}
 		else
 		{
-			// //debug_log_print("Content read failed!");
+			debug_log_print("Content read failed!");
 			return false;
 		}
 		SD_readMultipleSecStop();
@@ -514,35 +514,46 @@ static inline bool isClosed(myFile *pFile)
 
 uint8_t readByte(myFile *pFile)
 {
-	static uint32_t Cluster = 0;
-	static uint8_t sectorIndex = 0;
+    static bool readStarted = false;
+    static uint32_t Cluster = 0;
 
-	if (isClosed(pFile))
-	{
-		return 0;
-	}
+    if (pFile->entryIndex == 0)
+    {
+        readStarted = false;
+        Cluster = startCluster(pFile);
+    }
 
-	if (pFile->entryIndex == 0)
-	{
-		Cluster = startCluster(pFile);
-		sectorIndex = 0;
-	}
+    if (isClosed(pFile))
+    {
+        SD_readMultipleSecStop();
+        readStarted = false;
+        return 0;
+    }
 
-	if ((pFile->entryIndex > 0) && (pFile->entryIndex % (params.BPB_SecPerClus * params.BPB_BytesPerSec) == 0))
-	{
-		sectorIndex = 0;
-		Cluster = fatNextClus(Cluster);
-		if (Cluster >= FAT_EOC)
-		{
-			pFile->entryIndex = 0;
-			return 0;
-		}
-	}
+    if (!readStarted)
+    {
+        SD_readMultipleSecStart(startSecOfClus(Cluster));
+        SD_readMultipleSec(SD_buff);
+        readStarted = true;
+    }
 
-	if (pFile->entryIndex % params.BPB_BytesPerSec == 0)
-		SD_readSector(startSecOfClus(Cluster) + (sectorIndex++), SD_buff);
+    if ((pFile->entryIndex > 0) && (pFile->entryIndex % (params.BPB_SecPerClus * params.BPB_BytesPerSec) == 0))
+    {
+        SD_readMultipleSecStop();
+        Cluster = fatNextClus(Cluster);
+        if (Cluster >= FAT_EOC)
+        {
+            SD_readMultipleSecStop();
+            readStarted = false;
+            return 0;
+        }
+        SD_readMultipleSecStart(startSecOfClus(Cluster));
+    }
 
-	return SD_buff[(pFile->entryIndex++) % params.BPB_BytesPerSec];
+    if (pFile->entryIndex > 0 && (pFile->entryIndex % params.BPB_BytesPerSec == 0))
+        SD_readMultipleSec(SD_buff);
+
+    return SD_buff[(pFile->entryIndex++) % params.BPB_BytesPerSec];
 }
 
 bool listDir(const char *path)
@@ -1045,7 +1056,7 @@ myFile createDirectory(const char *path, const char *dirName)
 
 	if (startCluster(&thisDir) != 0)
 	{
-		// //debug_log_print("Folder exists!");
+		debug_log_print("Folder exists!");
 		return thisDir;
 	}
 
@@ -1201,10 +1212,10 @@ bool fileDelete(const char *path, const char *filename)
  * @brief Funtion to initialize SD Cart and FAT parameters.
  * @return true/fasle returns true upon successful initialization;Otherse returs false.
  */
-bool mySdFat_init(SPI_HandleTypeDef *hspi)
+bool mySdFat_init()
 {
 
-	if (SD_init(hspi) == SD_INIT_ERROR)
+	if (SD_init() == SD_INIT_ERROR)
 		return false;
 
 	if (getBootSecParams())
