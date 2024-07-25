@@ -4,8 +4,8 @@
 #include "SD_driver.h"
 #include "boards.h"
 #include "nrf.h"
-#include "nrf_delay.h"
 #include "debug_log.h"
+#include "task/task.h"
 
 #define CS_PIN NRF_GPIO_PIN_MAP(0, 2)
 #define MOSI_PIN NRF_GPIO_PIN_MAP(1, 13)
@@ -98,13 +98,13 @@
 #define SD_START_TOKEN 0xFE
 #define SD_BLOCK_LEN 512
 
-#define SPI_INSTANCE  1 /**< SPI instance index. */
-static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
+#define SPI_INSTANCE 1                                               /**< SPI instance index. */
+static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE); /**< SPI instance. */
 
 #define CS_DISABLE() nrf_gpio_pin_set(CS_PIN)
 #define CS_ENABLE() nrf_gpio_pin_clear(CS_PIN)
 
-volatile bool spi_xfer_done=false;
+volatile bool spi_xfer_done = false;
 
 void spi_event_handler(nrf_drv_spi_evt_t const *p_event,
                        void *p_context)
@@ -117,7 +117,8 @@ uint8_t SPI_transfer(uint8_t tx_Byte)
     uint8_t rx_Byte;
 
     APP_ERROR_CHECK(nrf_drv_spi_transfer(&spi, &tx_Byte, 1, &rx_Byte, 1));
-    while (!spi_xfer_done);
+    while (!spi_xfer_done)
+        ;
     spi_xfer_done = false;
 
     return rx_Byte;
@@ -129,7 +130,7 @@ void SD_powerUpSeq()
     CS_DISABLE();
 
     // give SD card time to power up
-    nrf_delay_ms(1);
+    taskSleepMS(1);
 
     // send 80 clock cycles to synchronize
     for (uint8_t i = 0; i < 20; i++)
@@ -288,7 +289,7 @@ uint8_t SD_sendOpCond()
 
     return res1;
 }
-
+/*
 void SD_printR1(uint8_t res)
 {
     if (res & 0b10000000)
@@ -303,18 +304,18 @@ void SD_printR1(uint8_t res)
     }
     if (PARAM_ERROR(res))
         debug_log_print("\tParameter Error\n\r");
-    if (ADDR_ERROR(res))
-        debug_log_print("\tAddress Error\n\r");
-    if (ERASE_SEQ_ERROR(res))
-        debug_log_print("\tErase Seq Error\n\r");
-    if (CRC_ERROR(res))
-        debug_log_print("\tCRC Error\n\r");
-    if (ILLEGAL_CMD(res))
-        debug_log_print("\tIllegal Cmd\n\r");
-    if (ERASE_RESET(res))
-        debug_log_print("\tErase Rst Error\n\r");
-    if (IN_IDLE(res))
-        debug_log_print("Idle State\n\r");
+        if (ADDR_ERROR(res))
+            debug_log_print("\tAddress Error\n\r");
+            if (ERASE_SEQ_ERROR(res))
+                debug_log_print("\tErase Seq Error\n\r");
+                if (CRC_ERROR(res))
+                    debug_log_print("\tCRC Error\n\r");
+                    if (ILLEGAL_CMD(res))
+                        debug_log_print("\tIllegal Cmd\n\r");
+                        if (ERASE_RESET(res))
+                            debug_log_print("\tErase Rst Error\n\r");
+                            if (IN_IDLE(res))
+    debug_log_print("Idle State\n\r");
 }
 
 void SD_printR7(uint8_t *res)
@@ -330,14 +331,14 @@ void SD_printR7(uint8_t *res)
     debug_log_print("\tVoltage Accepted: ");
     if (VOL_ACC(res[3]) == VOLTAGE_ACC_27_33)
         debug_log_print("2.7-3.6V\n\r");
-    else if (VOL_ACC(res[3]) == VOLTAGE_ACC_LOW)
-        debug_log_print("LOW VOLTAGE\n\r");
-    else if (VOL_ACC(res[3]) == VOLTAGE_ACC_RES1)
-        debug_log_print("RESERVED\n\r");
-    else if (VOL_ACC(res[3]) == VOLTAGE_ACC_RES2)
-        debug_log_print("RESERVED\n\r");
-    else
-        debug_log_print("NOT DEFINED\n");
+        else if (VOL_ACC(res[3]) == VOLTAGE_ACC_LOW)
+            debug_log_print("LOW VOLTAGE\n\r");
+            else if (VOL_ACC(res[3]) == VOLTAGE_ACC_RES1)
+            debug_log_print("RESERVED\n\r");
+            else if (VOL_ACC(res[3]) == VOLTAGE_ACC_RES2)
+            debug_log_print("RESERVED\n\r");
+            else
+    debug_log_print("NOT DEFINED\n");
 
     debug_log_print("\tEcho: ");
     debug_log_print("%x \n", res[4]);
@@ -359,8 +360,9 @@ void SD_printR3(uint8_t *res)
         {
             debug_log_print("1\r\n");
         }
-        else
-            debug_log_print("0\r\n");
+        else{
+        debug_log_print("0\r\n");
+        }
     }
     else
     {
@@ -369,38 +371,64 @@ void SD_printR3(uint8_t *res)
 
     debug_log_print("\tVDD Window: ");
     if (VDD_2728(res[3]))
+    {
         debug_log_print("2.7-2.8, ");
+    }
     if (VDD_2829(res[2]))
+    {
         debug_log_print("2.8-2.9, ");
+    }
     if (VDD_2930(res[2]))
-        debug_log_print("2.9-3.0, ");
+    { debug_log_print("2.9-3.0, ");
+    }
+
     if (VDD_3031(res[2]))
+    {
         debug_log_print("3.0-3.1, ");
+    }
     if (VDD_3132(res[2]))
+    {
         debug_log_print("3.1-3.2, ");
+    }
     if (VDD_3233(res[2]))
+    {
         debug_log_print("3.2-3.3, ");
+    }
     if (VDD_3334(res[2]))
+    {
         debug_log_print("3.3-3.4, ");
+    }
     if (VDD_3435(res[2]))
+    {
         debug_log_print("3.4-3.5, ");
+    }
     if (VDD_3536(res[2]))
+    {
         debug_log_print("3.5-3.6");
-    debug_log_print("\r\n");
+        debug_log_print("\r\n");
+    }
 }
 
 void SD_printDataErrToken(uint8_t token)
 {
     if (SD_TOKEN_OOR(token))
+    {
         debug_log_print("\tData out of range\r\n");
+    }
     if (SD_TOKEN_CECC(token))
+    {
         debug_log_print("\tCard ECC failed\r\n");
+    }
     if (SD_TOKEN_CC(token))
+    {
         debug_log_print("\tCC Error\r\n");
+    }
     if (SD_TOKEN_ERROR(token))
+    {
         debug_log_print("\tError\r\n");
+    }
 }
-
+*/
 uint8_t SD_read_start(uint8_t *buf, uint16_t read_len, uint8_t *token)
 {
     uint8_t res1, read;
@@ -484,7 +512,7 @@ uint8_t SD_readCSD(uint8_t *CSD)
 
 uint8_t SD_init()
 {
-    //uint8_t csd_reg[16];
+    // uint8_t csd_reg[16];
     nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
     spi_config.ss_pin = (uint8_t)NRF_SPI_PIN_NOT_CONNECTED;
     spi_config.miso_pin = MISO_PIN;
@@ -492,7 +520,7 @@ uint8_t SD_init()
     spi_config.sck_pin = SCK_PIN;
     APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
 
-    nrf_gpio_cfg_output (CS_PIN);
+    nrf_gpio_cfg_output(CS_PIN);
 
     uint8_t res[5], cmdAttempts = 0;
 
@@ -546,7 +574,7 @@ uint8_t SD_init()
         }
 
         // wait
-        nrf_delay_ms(10);
+        taskSleepMS(10);
 
         cmdAttempts++;
     } while (res[0] != SD_READY);
@@ -562,7 +590,8 @@ uint8_t SD_init()
     else
     {
         if (res[1] & 0x40)
-            debug_log_print("Card Type: SDHC\r\n");
+            ;
+        debug_log_print("Card Type: SDHC\r\n");
     }
     return SD_INIT_SUCCESS;
 }
@@ -600,7 +629,7 @@ uint8_t SD_readSector(uint32_t addr, uint8_t *buf)
         // if error token received
         if (!(token & 0xF0))
         {
-            SD_printDataErrToken(token);
+           // SD_printDataErrToken(token);
             return SD_READ_ERROR;
         }
         else if (token == 0xFF)
@@ -748,7 +777,7 @@ sd_ret_t SD_readMultipleSec(uint8_t *buff)
 
     if (!(read & 0xF0))
     {
-        SD_printDataErrToken(read);
+       // SD_printDataErrToken(read);
         return SD_READ_ERROR;
     }
     else if (read == 0xFF)
@@ -866,6 +895,6 @@ uint8_t SD_writeMultipleBlock(uint32_t start_addr, uint8_t blockCnt)
             return SD_WRITE_ERROR;
     }
 
-    SD_printR1(res1);
+   // SD_printR1(res1);
     return SD_WRITE_ERROR;
 }
